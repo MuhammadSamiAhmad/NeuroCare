@@ -43,7 +43,7 @@ app.*.map.json
 /android/app/release
 
 
-# Firebase config files (DO NOT COMMIT these)
+# Firebase config files 
 firebase.json
 .firebaserc
 

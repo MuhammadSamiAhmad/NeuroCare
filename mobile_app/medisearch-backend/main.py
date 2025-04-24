@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 import re
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
-print("API KEY:", os.getenv("MEDISEARCH_API_KEY"))
 app = FastAPI()
 client = MediSearchClient(api_key=os.getenv("MEDISEARCH_API_KEY"))
 
@@ -32,7 +31,7 @@ async def get_recommendation(data: QueryData):
         f"Return the response in the following format: "
         f"frequency: [recommended frequency in Hz], "
         f"duration: [recommended duration in minutes], "
-        f"justification: [your detailed justification]."
+        f"justification: [justification in no more than 25 words, without citation numbers or references]."
     )
 
     # Send the query to MediSearchClient
