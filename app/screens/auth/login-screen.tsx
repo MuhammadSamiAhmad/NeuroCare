@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { signInWithEmailAndPassword } from "firebase/auth";
+import { ref, set, get } from "firebase/database";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,7 +19,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { Input } from "../../components/ui/input";
 import { Button } from "../../components/ui/button";
 import { colors } from "../../theme/colors";
-import { auth } from "../../lib/firebase";
+import { auth, database } from "../../lib/firebase";
+import { useAuthStore } from "../../stores/auth-store";
 import type { RootStackParamList } from "../../types/navigation";
 
 // Create a typed navigation prop
@@ -32,6 +34,33 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const navigation = useNavigation<LoginScreenNavigationProp>();
+  const { setUser, setInitialized, isInitialized } = useAuthStore();
+
+  // Initialize user data in Firebase Realtime Database
+  const initializeUserData = async (userId: string) => {
+    const userRef = ref(database, `users/${userId}`);
+    try {
+      // Check if data already exists
+      const snapshot = await get(userRef);
+      if (!snapshot.exists()) {
+        // Initialize with default values
+        await set(userRef, {
+          session: {
+            isActive: false,
+            vibrationLevel: 50,
+          },
+          device: {
+            temperature: 0,
+            isConnected: false,
+          },
+        });
+      }
+      setInitialized(true);
+    } catch (error: any) {
+      console.error("Error initializing user data:", error);
+      Alert.alert("Error", "Failed to initialize user data.");
+    }
+  };
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -41,23 +70,22 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+      const user = userCredential.user;
+      setUser(user);
+      if (!isInitialized) {
+        await initializeUserData(user.uid);
+      }
       // Navigation will be handled by the auth state listener in App.tsx
     } catch (error: any) {
       Alert.alert("Login Failed", error.message || "An error occurred");
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleGoogleSignIn = () => {
-    // Implement Google Sign-In
-    Alert.alert("Info", "Google Sign-In would be implemented here");
-  };
-
-  const handleAppleSignIn = () => {
-    // Implement Apple Sign-In
-    Alert.alert("Info", "Apple Sign-In would be implemented here");
   };
 
   return (

@@ -20,6 +20,7 @@ import {
   orderBy,
   limit,
   getDocs,
+  Timestamp,
 } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
@@ -28,12 +29,12 @@ import { Card } from "../components/ui/card";
 import { ProgressChart } from "../components/charts/progress-chart";
 import { SessionHistoryItem } from "../components/session-history-item";
 import type { NavigationProp } from "../types/navigation";
-import type { SessionData } from "../types/session";
+import type { SessionData, ProgressData } from "../types/session";
 
 export default function DashboardScreen() {
   const navigation = useNavigation<NavigationProp<"Dashboard">>();
   const [recentSessions, setRecentSessions] = useState<SessionData[]>([]);
-  const [weeklyProgress, setWeeklyProgress] = useState({
+  const [weeklyProgress, setWeeklyProgress] = useState<ProgressData>({
     bloodFlow: 0,
     painReduction: 0,
     sessionDuration: 0,
@@ -69,13 +70,81 @@ export default function DashboardScreen() {
   };
 
   const fetchWeeklyProgress = async () => {
-    // In a real app, this would calculate progress based on session data
-    // For now, we'll use mock data
-    setWeeklyProgress({
-      bloodFlow: 65,
-      painReduction: 72,
-      sessionDuration: 85,
-    });
+    try {
+      const auth = getAuth();
+      const userId = auth.currentUser?.uid;
+
+      if (!userId) {
+        // Fallback to default values if no user
+        setWeeklyProgress({
+          bloodFlow: 0,
+          painReduction: 0,
+          sessionDuration: 0,
+        });
+        return;
+      }
+
+      const db = getFirestore();
+      const sessionsRef = collection(db, "sessions");
+      // Filter sessions from the last 7 days
+      const oneWeekAgo = Timestamp.fromMillis(
+        Date.now() - 7 * 24 * 60 * 60 * 1000
+      );
+      const q = query(
+        sessionsRef,
+        where("userId", "==", userId),
+        where("timestamp", ">=", oneWeekAgo),
+        orderBy("timestamp", "desc")
+      );
+
+      const querySnapshot = await getDocs(q);
+      const weeklySessions: SessionData[] = [];
+      querySnapshot.forEach((doc) => {
+        weeklySessions.push({ id: doc.id, ...doc.data() } as SessionData);
+      });
+
+      // Calculate progress metrics based on session data
+      if (weeklySessions.length > 0) {
+        const totalDuration = weeklySessions.reduce(
+          (sum, session) => sum + session.duration,
+          0
+        );
+        const avgVibrationIntensity =
+          weeklySessions.reduce(
+            (sum, session) => sum + session.vibrationIntensity,
+            0
+          ) / weeklySessions.length;
+        // Mock calculations for bloodFlow and painReduction since these aren't directly in data
+        // In a real app, these could be based on user feedback or sensor data
+        const bloodFlow = Math.min(
+          100,
+          Math.round(avgVibrationIntensity * 0.8)
+        ); // Example: higher intensity = better blood flow
+        const painReduction = Math.min(
+          100,
+          Math.round(weeklySessions.length * 10)
+        ); // Example: more sessions = more pain reduction
+
+        setWeeklyProgress({
+          bloodFlow,
+          painReduction,
+          sessionDuration: Math.min(100, Math.round(totalDuration / 60)), // Cap at 100 for display purposes (assuming max 60 minutes as 100%)
+        });
+      } else {
+        setWeeklyProgress({
+          bloodFlow: 0,
+          painReduction: 0,
+          sessionDuration: 0,
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching weekly progress:", error);
+      setWeeklyProgress({
+        bloodFlow: 0,
+        painReduction: 0,
+        sessionDuration: 0,
+      });
+    }
   };
 
   const onRefresh = async () => {

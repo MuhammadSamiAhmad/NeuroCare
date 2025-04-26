@@ -1,146 +1,182 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
-import { useNavigation } from "@react-navigation/native"
-import { Ionicons } from "@expo/vector-icons"
-import { getFirestore, collection, addDoc, serverTimestamp } from "firebase/firestore"
-import { getAuth } from "firebase/auth"
+import { useState, useEffect } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
+import { ref, onValue, set } from "firebase/database";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 
-import { colors } from "../theme/colors"
-import { Card } from "../components/ui/card"
-import { Slider } from "../components/ui/slider"
-import { TemperatureGraph } from "../components/charts/temperature-graph"
-import { useDeviceStore } from "../stores/device-store"
-import { useFirebaseRealtime } from "../hooks/use-firebase-realtime"
-import type { NavigationProp } from "../types/navigation"
+import { colors } from "../theme/colors";
+import { Card } from "../components/ui/card";
+import { Slider } from "../components/ui/slider";
+import { TemperatureGraph } from "../components/charts/temperature-graph";
+import { useDeviceStore } from "../stores/device-store";
+import { database, firestore } from "../lib/firebase";
+import type { NavigationProp } from "../types/navigation";
+
+interface DeviceData {
+  temperature: number;
+  isConnected: boolean;
+}
+
+interface SessionControlData {
+  isActive: boolean;
+  vibrationLevel: number;
+}
 
 export default function SessionControlScreen() {
-  const navigation = useNavigation<NavigationProp<"SessionControl">>()
-  const { deviceConnected } = useDeviceStore()
-  const [sessionActive, setSessionActive] = useState(false)
-  const [sessionDuration, setSessionDuration] = useState(0)
-  const [vibrationIntensity, setVibrationIntensity] = useState(50)
-  const [temperatureLevel, setTemperatureLevel] = useState(37)
-  const [sessionTimer, setSessionTimer] = useState<NodeJS.Timeout | null>(null)
+  const navigation = useNavigation<NavigationProp<"SessionControl">>();
+  const { deviceConnected, setDeviceConnected } = useDeviceStore();
+  const [sessionActive, setSessionActive] = useState(false);
+  const [sessionDuration, setSessionDuration] = useState(0);
+  const [vibrationIntensity, setVibrationIntensity] = useState(50);
+  const [temperatureLevel, setTemperatureLevel] = useState(0);
+  const [sessionTimer, setSessionTimer] = useState<NodeJS.Timeout | null>(null);
+  const [temperatureData, setTemperatureData] = useState<number[]>([]);
 
-  // Get real-time temperature data from Firebase
-  const temperatureData = useFirebaseRealtime<number[]>("deviceData/temperature") || []
+  const auth = getAuth();
+  const userId = auth.currentUser?.uid;
+
+  // Listen for real-time device data (temperature and connection status)
+  useEffect(() => {
+    if (!userId) return;
+
+    const deviceRef = ref(database, `users/${userId}/device`);
+    const unsubscribeDevice = onValue(deviceRef, (snapshot) => {
+      const data = snapshot.val() as DeviceData | null;
+      if (data) {
+        setTemperatureLevel(data.temperature || 0);
+        setDeviceConnected(data.isConnected || false);
+        setTemperatureData((prev) =>
+          [...prev, data.temperature || 0].slice(-30)
+        ); // Keep last 30 readings for graph
+      }
+    });
+
+    const sessionRef = ref(database, `users/${userId}/session`);
+    const unsubscribeSession = onValue(sessionRef, (snapshot) => {
+      const data = snapshot.val() as SessionControlData | null;
+      if (data) {
+        setSessionActive(data.isActive || false);
+        setVibrationIntensity(data.vibrationLevel || 50);
+      }
+    });
+
+    return () => {
+      unsubscribeDevice();
+      unsubscribeSession();
+    };
+  }, [userId, setDeviceConnected]);
 
   // Update Firebase with vibration intensity changes
-  const updateVibrationIntensity = (value: number) => {
-    setVibrationIntensity(value)
-    // Update Firebase with the new value
-    const db = getFirestore()
-    const deviceControlRef = collection(db, "deviceControl")
-    addDoc(deviceControlRef, {
-      type: "vibration",
-      value: value,
-      timestamp: serverTimestamp(),
-    })
-  }
+  const updateVibrationIntensity = async (value: number) => {
+    if (!userId) return;
+    setVibrationIntensity(value);
+    try {
+      await set(ref(database, `users/${userId}/session/vibrationLevel`), value);
+    } catch (error) {
+      console.error("Error updating vibration level:", error);
+    }
+  };
 
-  const startSession = () => {
+  const startSession = async () => {
     if (!deviceConnected) {
-      Alert.alert("Device Not Connected", "Please connect your NeuroCare device to start a session.")
-      return
+      Alert.alert(
+        "Device Not Connected",
+        "Please connect your NeuroCare device to start a session."
+      );
+      return;
     }
 
-    setSessionActive(true)
+    if (!userId) return;
+
+    setSessionActive(true);
 
     // Start session timer
     const timer = setInterval(() => {
-      setSessionDuration((prev) => prev + 1)
-    }, 1000)
+      setSessionDuration((prev) => prev + 1);
+    }, 1000);
 
-    setSessionTimer(timer)
+    setSessionTimer(timer);
 
-    // Send start command to Firebase
-    const db = getFirestore()
-    const deviceControlRef = collection(db, "deviceControl")
-    addDoc(deviceControlRef, {
-      type: "session",
-      action: "start",
-      vibrationIntensity: vibrationIntensity,
-      timestamp: serverTimestamp(),
-    })
-  }
+    // Update Firebase to start session
+    try {
+      await set(ref(database, `users/${userId}/session/isActive`), true);
+    } catch (error) {
+      console.error("Error starting session:", error);
+      Alert.alert("Error", "Failed to start session.");
+    }
+  };
 
   const stopSession = async () => {
+    if (!userId) return;
+
     // Clear timer
     if (sessionTimer) {
-      clearInterval(sessionTimer)
-      setSessionTimer(null)
+      clearInterval(sessionTimer);
+      setSessionTimer(null);
     }
 
-    setSessionActive(false)
+    setSessionActive(false);
 
-    // Send stop command to Firebase
-    const db = getFirestore()
-    const deviceControlRef = collection(db, "deviceControl")
-    await addDoc(deviceControlRef, {
-      type: "session",
-      action: "stop",
-      timestamp: serverTimestamp(),
-    })
-
-    // Save session data
+    // Update Firebase to stop session
     try {
-      const auth = getAuth()
-      const userId = auth.currentUser?.uid
+      await set(ref(database, `users/${userId}/session/isActive`), false);
+    } catch (error) {
+      console.error("Error stopping session:", error);
+    }
 
-      if (!userId) return
-
-      const sessionsRef = collection(db, "sessions")
+    // Save session data to Firestore (for history)
+    try {
+      const sessionsRef = collection(firestore, "sessions");
       await addDoc(sessionsRef, {
         userId,
         duration: sessionDuration,
         vibrationIntensity,
         averageTemperature: temperatureLevel,
         timestamp: serverTimestamp(),
-      })
+      });
 
       Alert.alert(
         "Session Completed",
-        `Your therapy session has been saved. Duration: ${formatTime(sessionDuration)}`,
+        `Your therapy session has been saved. Duration: ${formatTime(
+          sessionDuration
+        )}`,
         [
-          { text: "View Progress", onPress: () => navigation.navigate("ProgressTracking") },
+          {
+            text: "View Progress",
+            onPress: () => navigation.navigate("ProgressTracking"),
+          },
           { text: "OK", onPress: () => setSessionDuration(0) },
-        ],
-      )
+        ]
+      );
     } catch (error) {
-      console.error("Error saving session:", error)
-      Alert.alert("Error", "Failed to save your session data.")
+      console.error("Error saving session:", error);
+      Alert.alert("Error", "Failed to save your session data.");
     }
-  }
+  };
 
   const emergencyStop = () => {
-    Alert.alert("Emergency Stop", "Are you sure you want to stop the session immediately?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Stop", style: "destructive", onPress: stopSession },
-    ])
-  }
+    Alert.alert(
+      "Emergency Stop",
+      "Are you sure you want to stop the session immediately?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Stop", style: "destructive", onPress: stopSession },
+      ]
+    );
+  };
 
   const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
-  }
-
-  useEffect(() => {
-    // Update temperature level based on real-time data
-    if (temperatureData && temperatureData.length > 0) {
-      setTemperatureLevel(temperatureData[temperatureData.length - 1])
-    }
-
-    // Clean up timer on unmount
-    return () => {
-      if (sessionTimer) {
-        clearInterval(sessionTimer)
-      }
-    }
-  }, [temperatureData])
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs
+      .toString()
+      .padStart(2, "0")}`;
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -155,9 +191,18 @@ export default function SessionControlScreen() {
       <View style={styles.content}>
         <Card style={styles.sessionCard}>
           <View style={styles.sessionHeader}>
-            <Text style={styles.sessionTitle}>{sessionActive ? "Session in Progress" : "New Session"}</Text>
+            <Text style={styles.sessionTitle}>
+              {sessionActive ? "Session in Progress" : "New Session"}
+            </Text>
             <View
-              style={[styles.statusIndicator, { backgroundColor: sessionActive ? colors.success : colors.warning }]}
+              style={[
+                styles.statusIndicator,
+                {
+                  backgroundColor: sessionActive
+                    ? colors.success
+                    : colors.warning,
+                },
+              ]}
             />
           </View>
 
@@ -186,17 +231,25 @@ export default function SessionControlScreen() {
           <View style={styles.temperatureSection}>
             <Text style={styles.controlLabel}>Temperature Monitoring</Text>
             <TemperatureGraph data={temperatureData} />
-            <Text style={styles.temperatureValue}>Current: {temperatureLevel}°C</Text>
+            <Text style={styles.temperatureValue}>
+              Current: {temperatureLevel}°C
+            </Text>
           </View>
 
           {sessionActive ? (
-            <TouchableOpacity style={styles.emergencyStopButton} onPress={emergencyStop}>
+            <TouchableOpacity
+              style={styles.emergencyStopButton}
+              onPress={emergencyStop}
+            >
               <Ionicons name="stop-circle" size={24} color="white" />
               <Text style={styles.emergencyStopText}>EMERGENCY STOP</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
-              style={[styles.startButton, !deviceConnected && styles.disabledButton]}
+              style={[
+                styles.startButton,
+                !deviceConnected && styles.disabledButton,
+              ]}
               onPress={startSession}
               disabled={!deviceConnected}
             >
@@ -210,7 +263,12 @@ export default function SessionControlScreen() {
           <Text style={styles.deviceInfoTitle}>Device Information</Text>
           <View style={styles.deviceInfoRow}>
             <Text style={styles.deviceInfoLabel}>Status:</Text>
-            <Text style={[styles.deviceInfoValue, { color: deviceConnected ? colors.success : colors.error }]}>
+            <Text
+              style={[
+                styles.deviceInfoValue,
+                { color: deviceConnected ? colors.success : colors.error },
+              ]}
+            >
               {deviceConnected ? "Connected" : "Disconnected"}
             </Text>
           </View>
@@ -225,7 +283,7 @@ export default function SessionControlScreen() {
         </Card>
       </View>
     </SafeAreaView>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -365,4 +423,4 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: colors.text,
   },
-})
+});

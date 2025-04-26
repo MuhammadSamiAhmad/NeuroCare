@@ -1,83 +1,226 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
-import { useNavigation } from "@react-navigation/native"
-import { Ionicons } from "@expo/vector-icons"
-import { getFirestore, collection, query, where, orderBy, getDocs } from "firebase/firestore"
-import { getAuth } from "firebase/auth"
+import { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
+import {
+  getFirestore,
+  collection,
+  query,
+  where,
+  orderBy,
+  getDocs,
+  Timestamp,
+} from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 
-import { colors } from "../theme/colors"
-import { Card } from "../components/ui/card"
-import { ProgressChart } from "../components/charts/progress-chart"
-import { SessionHistoryItem } from "../components/session-history-item"
-import { MonthlyProgressChart } from "../components/charts/monthly-progress-chart"
-import type { NavigationProp } from "../types/navigation"
-import type { SessionData, MonthlyData, ProgressData } from "../types/session"
+import { colors } from "../theme/colors";
+import { Card } from "../components/ui/card";
+import { ProgressChart } from "../components/charts/progress-chart";
+import { SessionHistoryItem } from "../components/session-history-item";
+import { MonthlyProgressChart } from "../components/charts/monthly-progress-chart";
+import type { NavigationProp } from "../types/navigation";
+import type { SessionData, MonthlyData, ProgressData } from "../types/session";
 
 export default function ProgressTrackingScreen() {
-  const navigation = useNavigation<NavigationProp<"ProgressTracking">>()
-  const [activeTab, setActiveTab] = useState("weekly")
-  const [sessions, setSessions] = useState<SessionData[]>([])
+  const navigation = useNavigation<NavigationProp<"ProgressTracking">>();
+  const [activeTab, setActiveTab] = useState("weekly");
+  const [sessions, setSessions] = useState<SessionData[]>([]);
   const [weeklyProgress, setWeeklyProgress] = useState<ProgressData>({
     bloodFlow: 0,
     painReduction: 0,
     sessionDuration: 0,
-  })
-  const [monthlyProgress, setMonthlyProgress] = useState<MonthlyData[]>([])
+  });
+  const [monthlyProgress, setMonthlyProgress] = useState<MonthlyData[]>([]);
+  const [weeklyStats, setWeeklyStats] = useState({
+    totalSessions: 0,
+    totalTime: 0,
+    painReduction: 0,
+  });
+  const [monthlyStats, setMonthlyStats] = useState({
+    totalSessions: 0,
+    totalTime: 0,
+    improvement: 0,
+  });
 
   const fetchSessions = async () => {
     try {
-      const auth = getAuth()
-      const userId = auth.currentUser?.uid
+      const auth = getAuth();
+      const userId = auth.currentUser?.uid;
 
-      if (!userId) return
+      if (!userId) return;
 
-      const db = getFirestore()
-      const sessionsRef = collection(db, "sessions")
-      const q = query(sessionsRef, where("userId", "==", userId), orderBy("timestamp", "desc"))
+      const db = getFirestore();
+      const sessionsRef = collection(db, "sessions");
+      const q = query(
+        sessionsRef,
+        where("userId", "==", userId),
+        orderBy("timestamp", "desc")
+      );
 
-      const querySnapshot = await getDocs(q)
-      const sessionData: SessionData[] = []
+      const querySnapshot = await getDocs(q);
+      const sessionData: SessionData[] = [];
       querySnapshot.forEach((doc) => {
-        sessionData.push({ id: doc.id, ...doc.data() } as SessionData)
-      })
+        sessionData.push({ id: doc.id, ...doc.data() } as SessionData);
+      });
 
-      setSessions(sessionData)
+      setSessions(sessionData);
 
       // Calculate progress metrics based on session data
-      calculateProgressMetrics(sessionData)
+      calculateProgressMetrics(sessionData);
     } catch (error) {
-      console.error("Error fetching sessions:", error)
+      console.error("Error fetching sessions:", error);
     }
-  }
+  };
 
   const calculateProgressMetrics = (sessionData: SessionData[]) => {
-    // In a real app, this would calculate progress based on actual session data
-    // For now, we'll use mock data
+    if (!sessionData.length) {
+      setWeeklyProgress({ bloodFlow: 0, painReduction: 0, sessionDuration: 0 });
+      setMonthlyProgress([]);
+      setWeeklyStats({ totalSessions: 0, totalTime: 0, painReduction: 0 });
+      setMonthlyStats({ totalSessions: 0, totalTime: 0, improvement: 0 });
+      return;
+    }
 
-    // Weekly progress
-    setWeeklyProgress({
-      bloodFlow: 65,
-      painReduction: 72,
-      sessionDuration: 85,
-    })
+    // Weekly progress (last 7 days)
+    const oneWeekAgo = Timestamp.fromMillis(
+      Date.now() - 7 * 24 * 60 * 60 * 1000
+    );
+    const weeklySessions = sessionData.filter((session) => {
+      const sessionDate = new Date(session.timestamp.seconds * 1000);
+      return sessionDate >= oneWeekAgo.toDate();
+    });
 
-    // Monthly progress (mock data for 30 days)
-    const mockMonthlyData: MonthlyData[] = Array.from({ length: 30 }, (_, i) => ({
-      day: i + 1,
-      bloodFlow: Math.floor(Math.random() * 30) + 50,
-      painReduction: Math.floor(Math.random() * 30) + 50,
-      sessionDuration: Math.floor(Math.random() * 30) + 50,
-    }))
+    if (weeklySessions.length > 0) {
+      const totalDuration = weeklySessions.reduce(
+        (sum, session) => sum + session.duration,
+        0
+      );
+      const avgVibrationIntensity =
+        weeklySessions.reduce(
+          (sum, session) => sum + session.vibrationIntensity,
+          0
+        ) / weeklySessions.length;
+      const bloodFlow = Math.min(100, Math.round(avgVibrationIntensity * 0.8)); // Example
+      const painReduction = Math.min(
+        100,
+        Math.round(weeklySessions.length * 10)
+      ); // Example
 
-    setMonthlyProgress(mockMonthlyData)
-  }
+      setWeeklyProgress({
+        bloodFlow,
+        painReduction,
+        sessionDuration: Math.min(100, Math.round(totalDuration / 60)),
+      });
+      setWeeklyStats({
+        totalSessions: weeklySessions.length,
+        totalTime: Math.round(totalDuration / 60), // Convert seconds to minutes
+        painReduction: Math.round(painReduction),
+      });
+    } else {
+      setWeeklyProgress({ bloodFlow: 0, painReduction: 0, sessionDuration: 0 });
+      setWeeklyStats({ totalSessions: 0, totalTime: 0, painReduction: 0 });
+    }
+
+    // Monthly progress (last 30 days)
+    const oneMonthAgo = Timestamp.fromMillis(
+      Date.now() - 30 * 24 * 60 * 60 * 1000
+    );
+    const monthlySessions = sessionData.filter((session) => {
+      const sessionDate = new Date(session.timestamp.seconds * 1000);
+      return sessionDate >= oneMonthAgo.toDate();
+    });
+
+    if (monthlySessions.length > 0) {
+      const totalDuration = monthlySessions.reduce(
+        (sum, session) => sum + session.duration,
+        0
+      );
+      const avgVibrationIntensity =
+        monthlySessions.reduce(
+          (sum, session) => sum + session.vibrationIntensity,
+          0
+        ) / monthlySessions.length;
+      const improvement = Math.min(
+        100,
+        Math.round(avgVibrationIntensity * 0.65)
+      ); // Example
+
+      setMonthlyStats({
+        totalSessions: monthlySessions.length,
+        totalTime: Math.round(totalDuration / 60), // Convert seconds to minutes
+        improvement,
+      });
+
+      // Group sessions by day for the last 30 days
+      const monthlyData: MonthlyData[] = [];
+      const now = new Date();
+      for (let i = 0; i < 30; i++) {
+        const day = new Date(now);
+        day.setDate(now.getDate() - i);
+        const dayStart =
+          new Date(day.getFullYear(), day.getMonth(), day.getDate()).getTime() /
+          1000;
+        const dayEnd =
+          new Date(
+            day.getFullYear(),
+            day.getMonth(),
+            day.getDate() + 1
+          ).getTime() / 1000;
+
+        const daySessions = monthlySessions.filter((session) => {
+          const sessionTime = session.timestamp.seconds;
+          return sessionTime >= dayStart && sessionTime < dayEnd;
+        });
+
+        const dayBloodFlow = daySessions.length
+          ? Math.min(
+              100,
+              Math.round(
+                (daySessions.reduce((sum, s) => sum + s.vibrationIntensity, 0) /
+                  daySessions.length) *
+                  0.8
+              )
+            )
+          : 0;
+        const dayPainReduction = daySessions.length
+          ? Math.min(100, Math.round(daySessions.length * 10))
+          : 0;
+        const daySessionDuration = daySessions.length
+          ? Math.min(
+              100,
+              Math.round(
+                daySessions.reduce((sum, s) => sum + s.duration, 0) / 60
+              )
+            )
+          : 0;
+
+        monthlyData.unshift({
+          day: i + 1,
+          bloodFlow: dayBloodFlow,
+          painReduction: dayPainReduction,
+          sessionDuration: daySessionDuration,
+        });
+      }
+
+      setMonthlyProgress(monthlyData);
+    } else {
+      setMonthlyProgress([]);
+      setMonthlyStats({ totalSessions: 0, totalTime: 0, improvement: 0 });
+    }
+  };
 
   useEffect(() => {
-    fetchSessions()
-  }, [])
+    fetchSessions();
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -94,19 +237,40 @@ export default function ProgressTrackingScreen() {
           style={[styles.tab, activeTab === "weekly" && styles.activeTab]}
           onPress={() => setActiveTab("weekly")}
         >
-          <Text style={[styles.tabText, activeTab === "weekly" && styles.activeTabText]}>Weekly</Text>
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "weekly" && styles.activeTabText,
+            ]}
+          >
+            Weekly
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === "monthly" && styles.activeTab]}
           onPress={() => setActiveTab("monthly")}
         >
-          <Text style={[styles.tabText, activeTab === "monthly" && styles.activeTabText]}>Monthly</Text>
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "monthly" && styles.activeTabText,
+            ]}
+          >
+            Monthly
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === "history" && styles.activeTab]}
           onPress={() => setActiveTab("history")}
         >
-          <Text style={[styles.tabText, activeTab === "history" && styles.activeTabText]}>History</Text>
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "history" && styles.activeTabText,
+            ]}
+          >
+            History
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -118,15 +282,30 @@ export default function ProgressTrackingScreen() {
               <ProgressChart data={weeklyProgress} />
               <View style={styles.progressLegend}>
                 <View style={styles.legendItem}>
-                  <View style={[styles.legendColor, { backgroundColor: colors.chart1 }]} />
+                  <View
+                    style={[
+                      styles.legendColor,
+                      { backgroundColor: colors.chart1 },
+                    ]}
+                  />
                   <Text style={styles.legendText}>Blood Flow</Text>
                 </View>
                 <View style={styles.legendItem}>
-                  <View style={[styles.legendColor, { backgroundColor: colors.chart2 }]} />
+                  <View
+                    style={[
+                      styles.legendColor,
+                      { backgroundColor: colors.chart2 },
+                    ]}
+                  />
                   <Text style={styles.legendText}>Pain Reduction</Text>
                 </View>
                 <View style={styles.legendItem}>
-                  <View style={[styles.legendColor, { backgroundColor: colors.chart3 }]} />
+                  <View
+                    style={[
+                      styles.legendColor,
+                      { backgroundColor: colors.chart3 },
+                    ]}
+                  />
                   <Text style={styles.legendText}>Session Duration</Text>
                 </View>
               </View>
@@ -136,15 +315,21 @@ export default function ProgressTrackingScreen() {
               <Text style={styles.cardTitle}>Weekly Stats</Text>
               <View style={styles.statsRow}>
                 <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{sessions.length}</Text>
+                  <Text style={styles.statValue}>
+                    {weeklyStats.totalSessions}
+                  </Text>
                   <Text style={styles.statLabel}>Sessions</Text>
                 </View>
                 <View style={styles.statItem}>
-                  <Text style={styles.statValue}>120 min</Text>
+                  <Text style={styles.statValue}>
+                    {weeklyStats.totalTime} min
+                  </Text>
                   <Text style={styles.statLabel}>Total Time</Text>
                 </View>
                 <View style={styles.statItem}>
-                  <Text style={styles.statValue}>72%</Text>
+                  <Text style={styles.statValue}>
+                    {weeklyStats.painReduction}%
+                  </Text>
                   <Text style={styles.statLabel}>Pain Reduction</Text>
                 </View>
               </View>
@@ -152,9 +337,15 @@ export default function ProgressTrackingScreen() {
 
             <Card style={styles.tipsCard}>
               <Text style={styles.cardTitle}>Recommendations</Text>
-              <Text style={styles.tipText}>• Maintain consistent daily sessions for optimal results</Text>
-              <Text style={styles.tipText}>• Gradually increase vibration intensity as comfort allows</Text>
-              <Text style={styles.tipText}>• Stay hydrated before and after therapy sessions</Text>
+              <Text style={styles.tipText}>
+                • Maintain consistent daily sessions for optimal results
+              </Text>
+              <Text style={styles.tipText}>
+                • Gradually increase vibration intensity as comfort allows
+              </Text>
+              <Text style={styles.tipText}>
+                • Stay hydrated before and after therapy sessions
+              </Text>
             </Card>
           </View>
         )}
@@ -166,11 +357,21 @@ export default function ProgressTrackingScreen() {
               <MonthlyProgressChart data={monthlyProgress} />
               <View style={styles.progressLegend}>
                 <View style={styles.legendItem}>
-                  <View style={[styles.legendColor, { backgroundColor: colors.chart1 }]} />
+                  <View
+                    style={[
+                      styles.legendColor,
+                      { backgroundColor: colors.chart1 },
+                    ]}
+                  />
                   <Text style={styles.legendText}>Blood Flow</Text>
                 </View>
                 <View style={styles.legendItem}>
-                  <View style={[styles.legendColor, { backgroundColor: colors.chart2 }]} />
+                  <View
+                    style={[
+                      styles.legendColor,
+                      { backgroundColor: colors.chart2 },
+                    ]}
+                  />
                   <Text style={styles.legendText}>Pain Reduction</Text>
                 </View>
               </View>
@@ -180,15 +381,21 @@ export default function ProgressTrackingScreen() {
               <Text style={styles.cardTitle}>Monthly Stats</Text>
               <View style={styles.statsRow}>
                 <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{sessions.length}</Text>
+                  <Text style={styles.statValue}>
+                    {monthlyStats.totalSessions}
+                  </Text>
                   <Text style={styles.statLabel}>Sessions</Text>
                 </View>
                 <View style={styles.statItem}>
-                  <Text style={styles.statValue}>480 min</Text>
+                  <Text style={styles.statValue}>
+                    {monthlyStats.totalTime} min
+                  </Text>
                   <Text style={styles.statLabel}>Total Time</Text>
                 </View>
                 <View style={styles.statItem}>
-                  <Text style={styles.statValue}>65%</Text>
+                  <Text style={styles.statValue}>
+                    {monthlyStats.improvement}%
+                  </Text>
                   <Text style={styles.statLabel}>Improvement</Text>
                 </View>
               </View>
@@ -201,7 +408,13 @@ export default function ProgressTrackingScreen() {
             <Text style={styles.sectionTitle}>Session History</Text>
 
             {sessions.length > 0 ? (
-              sessions.map((session) => <SessionHistoryItem key={session.id} session={session} detailed />)
+              sessions.map((session) => (
+                <SessionHistoryItem
+                  key={session.id}
+                  session={session}
+                  detailed
+                />
+              ))
             ) : (
               <Card style={styles.emptySessionsCard}>
                 <Text style={styles.emptySessionsText}>
@@ -213,7 +426,7 @@ export default function ProgressTrackingScreen() {
         )}
       </ScrollView>
     </SafeAreaView>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -336,4 +549,4 @@ const styles = StyleSheet.create({
     color: colors.textLight,
     textAlign: "center",
   },
-})
+});

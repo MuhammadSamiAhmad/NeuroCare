@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   View,
   Text,
@@ -33,47 +33,61 @@ const onboardingData: OnboardingItem[] = [
     title: "Welcome to NeuroCare",
     description:
       "Your personal companion for managing neuropathy symptoms. Let's get started on your journey to better health.",
-    image: require("../../assets/images/onboarding-1.jpg"), // Replace with a relevant image
+    image: require("../../assets/images/onboarding-1.jpg"),
   },
   {
     id: "2",
     title: "Start Therapy Sessions",
     description:
       "Easily start therapy sessions to manage your symptoms. Adjust vibration intensity and monitor temperature in real-time.",
-    image: require("../../assets/images/onboarding-1.jpg"), // Replace with a relevant image
+    image: require("../../assets/images/onboarding-2.jpg"),
   },
   {
     id: "3",
     title: "Track Your Progress",
     description:
       "Monitor your improvement over time with detailed charts and session history. Stay motivated by seeing your progress.",
-    image: require("../../assets/images/onboarding-1.jpg"), // Replace with a relevant image
+    image: require("../../assets/images/onboarding-3.jpg"),
   },
   {
     id: "4",
     title: "Get Personalized Recommendations",
     description:
       "Receive AI-powered recommendations tailored to your needs. Optimize your therapy sessions for the best results.",
-    image: require("../../assets/images/onboarding-1.jpg"), // Replace with a relevant image
+    image: require("../../assets/images/onboarding-4.jpg"),
   },
   {
     id: "5",
     title: "Ready to Begin?",
     description:
       "Connect your NeuroCare device and start your personalized therapy journey today. Take control of your health!",
-    image: require("../../assets/images/onboarding-1.jpg"), // Replace with a relevant image
+    image: require("../../assets/images/onboarding-5.jpg"),
   },
 ];
 
 export default function OnboardingScreen() {
   const navigation = useNavigation<NavigationProp<"Onboarding">>();
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState<number>(0);
+  const flatListRef = useRef(null);
+
+  const goToIndex = (index: number) => {
+    if (index >= 0 && index < onboardingData.length) {
+      setCurrentIndex(index);
+      flatListRef.current.scrollToIndex({ index, animated: true });
+    }
+  };
 
   const handleNext = () => {
     if (currentIndex < onboardingData.length - 1) {
-      setCurrentIndex(currentIndex + 1);
+      goToIndex(currentIndex + 1);
     } else {
       navigation.navigate("Dashboard");
+    }
+  };
+
+  const handleBack = () => {
+    if (currentIndex > 0) {
+      goToIndex(currentIndex - 1);
     }
   };
 
@@ -93,7 +107,7 @@ export default function OnboardingScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         {currentIndex > 0 ? (
-          <TouchableOpacity onPress={() => setCurrentIndex(currentIndex - 1)}>
+          <TouchableOpacity onPress={handleBack}>
             <Ionicons name="arrow-back" size={24} color={colors.primary} />
           </TouchableOpacity>
         ) : (
@@ -106,13 +120,19 @@ export default function OnboardingScreen() {
       </View>
 
       <FlatList
+        ref={flatListRef}
         data={onboardingData}
         renderItem={renderItem}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        scrollEnabled={false}
+        scrollEnabled={false} // Set to true if you want to allow swiping
         keyExtractor={(item) => item.id}
+        getItemLayout={(data, index) => ({
+          length: width,
+          offset: width * index,
+          index,
+        })}
       />
 
       <View style={styles.footer}>
