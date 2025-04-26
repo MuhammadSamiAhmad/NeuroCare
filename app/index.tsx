@@ -13,6 +13,8 @@ import OnboardingScreen from "./screens/onboarding-screen";
 import DashboardScreen from "./screens/dashboard-screen";
 import SessionControlScreen from "./screens/session-control-screen";
 import ProgressTrackingScreen from "./screens/progress-tracking-screen";
+import RecommendationsScreen from "./screens/recommendations-screen";
+import ExerciseVideosScreen from "./screens/exercise-videos-screen";
 import ProfileScreen from "./screens/profile-screen";
 import type { RootStackParamList } from "./types/navigation";
 import { useAuthStore } from "./stores/auth-store";
@@ -55,6 +57,14 @@ export default function App() {
               component={ProgressTrackingScreen}
             />
             <Stack.Screen name="Profile" component={ProfileScreen} />
+            <Stack.Screen
+              name="Recommendations"
+              component={RecommendationsScreen}
+            />
+            <Stack.Screen
+              name="ExerciseVideos"
+              component={ExerciseVideosScreen}
+            />
           </>
         )}
       </Stack.Navigator>
