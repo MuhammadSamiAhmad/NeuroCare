@@ -137,32 +137,6 @@ export default function SignupScreen() {
             loading={loading}
             style={styles.signupButton}
           />
-
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>OR</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <Button
-            title="Continue with Google"
-            onPress={() =>
-              Alert.alert("Info", "Google Sign-In would be implemented here")
-            }
-            variant="outline"
-            leftIcon={<Ionicons name="logo-google" size={20} color="#DB4437" />}
-            style={styles.socialButton}
-          />
-
-          <Button
-            title="Continue with Apple"
-            onPress={() =>
-              Alert.alert("Info", "Apple Sign-In would be implemented here")
-            }
-            variant="outline"
-            leftIcon={<Ionicons name="logo-apple" size={20} color="#000" />}
-            style={styles.socialButton}
-          />
         </View>
 
         <View style={styles.footer}>
@@ -190,6 +164,7 @@ const styles = StyleSheet.create({
   logo: {
     width: 80,
     height: 80,
+    borderRadius: 999999999,
     resizeMode: "contain",
   },
   title: {
@@ -209,23 +184,6 @@ const styles = StyleSheet.create({
   },
   signupButton: {
     marginTop: 8,
-  },
-  divider: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 20,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.border,
-  },
-  dividerText: {
-    marginHorizontal: 10,
-    color: colors.textLight,
-  },
-  socialButton: {
-    marginBottom: 10,
   },
   footer: {
     flexDirection: "row",

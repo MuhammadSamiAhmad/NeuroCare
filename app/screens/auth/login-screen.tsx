@@ -112,28 +112,6 @@ export default function LoginScreen() {
           loading={loading}
           style={styles.loginButton}
         />
-
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>OR</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        <Button
-          title="Continue with Google"
-          onPress={handleGoogleSignIn}
-          variant="outline"
-          leftIcon={<Ionicons name="logo-google" size={20} color="#DB4437" />}
-          style={styles.socialButton}
-        />
-
-        <Button
-          title="Continue with Apple"
-          onPress={handleAppleSignIn}
-          variant="outline"
-          leftIcon={<Ionicons name="logo-apple" size={20} color="#000" />}
-          style={styles.socialButton}
-        />
       </View>
 
       <View style={styles.footer}>
@@ -160,6 +138,7 @@ const styles = StyleSheet.create({
   logo: {
     width: 100,
     height: 100,
+    borderRadius: 999999999,
     resizeMode: "contain",
   },
   title: {
@@ -185,27 +164,10 @@ const styles = StyleSheet.create({
   loginButton: {
     marginTop: 8,
   },
-  divider: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 20,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.border,
-  },
-  dividerText: {
-    marginHorizontal: 10,
-    color: colors.textLight,
-  },
-  socialButton: {
-    marginBottom: 10,
-  },
   footer: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: "auto",
+    marginTop: 20,
     marginBottom: 20,
   },
   footerText: {

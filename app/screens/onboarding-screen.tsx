@@ -32,29 +32,36 @@ const onboardingData: OnboardingItem[] = [
     id: "1",
     title: "Welcome to NeuroCare",
     description:
-      "Your personal companion for managing neuropathy symptoms with smart wearable therapy.",
-    image: require("../../assets/images/onboarding-1.jpg"),
+      "Your personal companion for managing neuropathy symptoms. Let's get started on your journey to better health.",
+    image: require("../../assets/images/onboarding-1.jpg"), // Replace with a relevant image
   },
   {
     id: "2",
-    title: "Smart Vibration Therapy",
+    title: "Start Therapy Sessions",
     description:
-      "Control vibration intensity and monitor temperature in real-time for optimal treatment.",
-    image: require("../../assets/images/onboarding-1.jpg"),
+      "Easily start therapy sessions to manage your symptoms. Adjust vibration intensity and monitor temperature in real-time.",
+    image: require("../../assets/images/onboarding-1.jpg"), // Replace with a relevant image
   },
   {
     id: "3",
     title: "Track Your Progress",
     description:
-      "Monitor your improvement over time with detailed charts and session history.",
-    image: require("../../assets/images/onboarding-1.jpg"),
+      "Monitor your improvement over time with detailed charts and session history. Stay motivated by seeing your progress.",
+    image: require("../../assets/images/onboarding-1.jpg"), // Replace with a relevant image
   },
   {
     id: "4",
-    title: "Ready to Start?",
+    title: "Get Personalized Recommendations",
     description:
-      "Connect your NeuroCare device and begin your personalized therapy journey.",
-    image: require("../../assets/images/onboarding-1.jpg"),
+      "Receive AI-powered recommendations tailored to your needs. Optimize your therapy sessions for the best results.",
+    image: require("../../assets/images/onboarding-1.jpg"), // Replace with a relevant image
+  },
+  {
+    id: "5",
+    title: "Ready to Begin?",
+    description:
+      "Connect your NeuroCare device and start your personalized therapy journey today. Take control of your health!",
+    image: require("../../assets/images/onboarding-1.jpg"), // Replace with a relevant image
   },
 ];
 
