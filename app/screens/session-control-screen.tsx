@@ -1,7 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  ScrollView,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,6 +26,7 @@ import type { NavigationProp } from "../types/navigation";
 
 interface DeviceData {
   temperature: number;
+  heartRate: number;
   isConnected: boolean;
 }
 
@@ -34,13 +42,14 @@ export default function SessionControlScreen() {
   const [sessionDuration, setSessionDuration] = useState(0);
   const [vibrationIntensity, setVibrationIntensity] = useState(50);
   const [temperatureLevel, setTemperatureLevel] = useState(0);
+  const [heartRate, setHeartRate] = useState(0);
   const [sessionTimer, setSessionTimer] = useState<NodeJS.Timeout | null>(null);
   const [temperatureData, setTemperatureData] = useState<number[]>([]);
 
   const auth = getAuth();
   const userId = auth.currentUser?.uid;
 
-  // Listen for real-time device data (temperature and connection status)
+  // Listen for real-time device data (temperature, heart rate, and connection status)
   useEffect(() => {
     if (!userId) return;
 
@@ -49,10 +58,17 @@ export default function SessionControlScreen() {
       const data = snapshot.val() as DeviceData | null;
       if (data) {
         setTemperatureLevel(data.temperature || 0);
+        setHeartRate(data.heartRate || 0);
         setDeviceConnected(data.isConnected || false);
-        setTemperatureData((prev) =>
-          [...prev, data.temperature || 0].slice(-30)
-        ); // Keep last 30 readings for graph
+
+        // Only update temperatureData if the temperature has changed
+        setTemperatureData((prev) => {
+          const lastTemp = prev.length > 0 ? prev[prev.length - 1] : null;
+          if (lastTemp === null || lastTemp !== data.temperature) {
+            return [...prev, data.temperature || 0].slice(-20); // Keep last 20 readings
+          }
+          return prev; // No change in temperature, return unchanged array
+        });
       }
     });
 
@@ -121,6 +137,7 @@ export default function SessionControlScreen() {
     }
 
     setSessionActive(false);
+    setTemperatureData([]); // Clear the temperature graph data
 
     // Update Firebase to stop session
     try {
@@ -137,6 +154,7 @@ export default function SessionControlScreen() {
         duration: sessionDuration,
         vibrationIntensity,
         averageTemperature: temperatureLevel,
+        averageHeartRate: heartRate,
         timestamp: serverTimestamp(),
       });
 
@@ -158,7 +176,6 @@ export default function SessionControlScreen() {
       Alert.alert("Error", "Failed to save your session data.");
     }
   };
-
   const emergencyStop = () => {
     Alert.alert(
       "Emergency Stop",
@@ -188,7 +205,11 @@ export default function SessionControlScreen() {
         <View style={{ width: 24 }} />
       </View>
 
-      <View style={styles.content}>
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         <Card style={styles.sessionCard}>
           <View style={styles.sessionHeader}>
             <Text style={styles.sessionTitle}>
@@ -236,6 +257,14 @@ export default function SessionControlScreen() {
             </Text>
           </View>
 
+          <View style={styles.heartRateSection}>
+            <Text style={styles.controlLabel}>Heart Rate</Text>
+            <View style={styles.heartRateContainer}>
+              <Ionicons name="heart" size={24} color={colors.error} />
+              <Text style={styles.heartRateValue}>{heartRate} BPM</Text>
+            </View>
+          </View>
+
           {sessionActive ? (
             <TouchableOpacity
               style={styles.emergencyStopButton}
@@ -280,8 +309,15 @@ export default function SessionControlScreen() {
             <Text style={styles.deviceInfoLabel}>Safe Temperature Range:</Text>
             <Text style={styles.deviceInfoValue}>35°C - 40°C</Text>
           </View>
+          <View style={styles.deviceInfoRow}>
+            <Text style={styles.deviceInfoLabel}>Normal Heart Rate:</Text>
+            <Text style={styles.deviceInfoValue}>60-100 BPM</Text>
+          </View>
         </Card>
-      </View>
+
+        {/* Add extra padding at the bottom */}
+        <View style={styles.bottomPadding} />
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -305,7 +341,10 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  scrollContent: {
     padding: 16,
+    paddingBottom: 100, // Extra padding at the bottom
   },
   sessionCard: {
     padding: 16,
@@ -370,6 +409,21 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 8,
   },
+  heartRateSection: {
+    marginBottom: 24,
+  },
+  heartRateContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+  },
+  heartRateValue: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: colors.text,
+    marginLeft: 8,
+  },
   emergencyStopButton: {
     backgroundColor: colors.error,
     borderRadius: 8,
@@ -422,5 +476,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
     color: colors.text,
+  },
+  bottomPadding: {
+    height: 50, // Extra padding at the bottom
   },
 });

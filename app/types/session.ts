@@ -1,24 +1,23 @@
 export interface SessionData {
-  id: string
+  id: string;
+  userId: string;
+  duration: number;
+  vibrationIntensity: number;
+  averageTemperature: number;
+  averageHeartRate?: number;
   timestamp: {
-    seconds: number
-    nanoseconds: number
-  }
-  duration: number
-  vibrationIntensity: number
-  averageTemperature: number
-  userId?: string
-}
-
-export interface MonthlyData {
-  day: number
-  bloodFlow: number
-  painReduction: number
-  sessionDuration: number
+    seconds: number;
+    nanoseconds: number;
+  };
 }
 
 export interface ProgressData {
-  bloodFlow: number
-  painReduction: number
-  sessionDuration: number
+  heartRate: number;
+  sessionDuration: number;
+}
+
+export interface MonthlyData {
+  day: number;
+  heartRate: number;
+  sessionDuration: number;
 }

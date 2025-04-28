@@ -1,18 +1,45 @@
-import type React from "react"
-import { View, StyleSheet, Dimensions } from "react-native"
-import { LineChart } from "react-native-chart-kit"
-import { colors } from "../../theme/colors"
+import type React from "react";
+import { View, StyleSheet, Dimensions } from "react-native";
+import { LineChart } from "react-native-chart-kit";
+import { colors } from "../../theme/colors";
 
 interface TemperatureGraphProps {
-  data: number[]
+  data: number[];
 }
 
 export const TemperatureGraph: React.FC<TemperatureGraphProps> = ({ data }) => {
-  // If no data is provided, use mock data
-  const chartData = data.length > 0 ? data : [36.5, 36.7, 37.0, 37.2, 37.1, 37.0, 36.9]
+  // If no data is provided, zero is used.
+  const chartData = data.length > 0 ? data : [0];
 
-  // Generate labels based on data length
-  const labels = chartData.map((_, index) => `${index + 1}m`)
+  // Always limit to the last 10 readings
+  const limitedData = chartData.slice(-10);
+
+  // Calculate the starting reading number (if we have more than 10 readings)
+  // This is the position of the first reading in our limited data within the full dataset
+  const startingReadingNumber = Math.max(
+    1,
+    chartData.length - limitedData.length + 1
+  );
+
+  // Generate 10 evenly distributed labels for the x-axis
+  const labelCount = 10;
+  const labels = [];
+
+  if (limitedData.length <= labelCount) {
+    // If we have 10 or fewer readings, show all of them
+    for (let i = 0; i < limitedData.length; i++) {
+      labels.push((startingReadingNumber + i).toString());
+    }
+  } else {
+    // If we have more than 10 readings, distribute them evenly
+    const step = Math.ceil(limitedData.length / labelCount);
+
+    for (let i = 0; i < labelCount; i++) {
+      const dataIndex = Math.min(i * step, limitedData.length - 1);
+      const readingNumber = startingReadingNumber + dataIndex;
+      labels.push(readingNumber.toString());
+    }
+  }
 
   const chartConfig = {
     backgroundGradientFrom: colors.cardBackground,
@@ -28,7 +55,7 @@ export const TemperatureGraph: React.FC<TemperatureGraphProps> = ({ data }) => {
       strokeWidth: "2",
       stroke: colors.primary,
     },
-  }
+  };
 
   return (
     <View style={styles.container}>
@@ -37,7 +64,7 @@ export const TemperatureGraph: React.FC<TemperatureGraphProps> = ({ data }) => {
           labels: labels,
           datasets: [
             {
-              data: chartData,
+              data: limitedData,
             },
           ],
         }}
@@ -52,8 +79,8 @@ export const TemperatureGraph: React.FC<TemperatureGraphProps> = ({ data }) => {
         yAxisSuffix="°C"
       />
     </View>
-  )
-}
+  );
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -63,4 +90,4 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     borderRadius: 8,
   },
-})
+});

@@ -35,8 +35,7 @@ export default function DashboardScreen() {
   const navigation = useNavigation<NavigationProp<"Dashboard">>();
   const [recentSessions, setRecentSessions] = useState<SessionData[]>([]);
   const [weeklyProgress, setWeeklyProgress] = useState<ProgressData>({
-    bloodFlow: 0,
-    painReduction: 0,
+    heartRate: 0,
     sessionDuration: 0,
   });
   const [refreshing, setRefreshing] = useState(false);
@@ -77,8 +76,7 @@ export default function DashboardScreen() {
       if (!userId) {
         // Fallback to default values if no user
         setWeeklyProgress({
-          bloodFlow: 0,
-          painReduction: 0,
+          heartRate: 0,
           sessionDuration: 0,
         });
         return;
@@ -109,39 +107,35 @@ export default function DashboardScreen() {
           (sum, session) => sum + session.duration,
           0
         );
-        const avgVibrationIntensity =
-          weeklySessions.reduce(
-            (sum, session) => sum + session.vibrationIntensity,
-            0
-          ) / weeklySessions.length;
-        // Mock calculations for bloodFlow and painReduction since these aren't directly in data
-        // In a real app, these could be based on user feedback or sensor data
-        const bloodFlow = Math.min(
-          100,
-          Math.round(avgVibrationIntensity * 0.8)
-        ); // Example: higher intensity = better blood flow
-        const painReduction = Math.min(
-          100,
-          Math.round(weeklySessions.length * 10)
-        ); // Example: more sessions = more pain reduction
+
+        // Calculate average heart rate from sessions that have it
+        const sessionsWithHeartRate = weeklySessions.filter(
+          (session) => session.averageHeartRate
+        );
+        const avgHeartRate =
+          sessionsWithHeartRate.length > 0
+            ? Math.round(
+                sessionsWithHeartRate.reduce(
+                  (sum, session) => sum + (session.averageHeartRate || 0),
+                  0
+                ) / sessionsWithHeartRate.length
+              )
+            : 0;
 
         setWeeklyProgress({
-          bloodFlow,
-          painReduction,
+          heartRate: avgHeartRate,
           sessionDuration: Math.min(100, Math.round(totalDuration / 60)), // Cap at 100 for display purposes (assuming max 60 minutes as 100%)
         });
       } else {
         setWeeklyProgress({
-          bloodFlow: 0,
-          painReduction: 0,
+          heartRate: 0,
           sessionDuration: 0,
         });
       }
     } catch (error) {
       console.error("Error fetching weekly progress:", error);
       setWeeklyProgress({
-        bloodFlow: 0,
-        painReduction: 0,
+        heartRate: 0,
         sessionDuration: 0,
       });
     }
@@ -176,6 +170,7 @@ export default function DashboardScreen() {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
+        contentContainerStyle={styles.scrollContent}
       >
         <Card style={styles.startSessionCard}>
           <Text style={styles.cardTitle}>Ready for your therapy?</Text>
@@ -190,6 +185,7 @@ export default function DashboardScreen() {
             <Ionicons name="play-circle" size={24} color="white" />
           </TouchableOpacity>
         </Card>
+
         <Card style={styles.startSessionCard}>
           <Text style={styles.cardTitle}>Explore More Resources</Text>
           <Text style={styles.cardDescription}>
@@ -224,16 +220,7 @@ export default function DashboardScreen() {
                     { backgroundColor: colors.chart1 },
                   ]}
                 />
-                <Text style={styles.legendText}>Blood Flow</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View
-                  style={[
-                    styles.legendColor,
-                    { backgroundColor: colors.chart2 },
-                  ]}
-                />
-                <Text style={styles.legendText}>Pain Reduction</Text>
+                <Text style={styles.legendText}>Heart Rate</Text>
               </View>
               <View style={styles.legendItem}>
                 <View
@@ -260,7 +247,11 @@ export default function DashboardScreen() {
 
           {recentSessions.length > 0 ? (
             recentSessions.map((session) => (
-              <SessionHistoryItem key={session.id} session={session} />
+              <SessionHistoryItem
+                key={session.id}
+                session={session}
+                onDelete={fetchRecentSessions}
+              />
             ))
           ) : (
             <Card style={styles.emptySessionsCard}>
@@ -270,6 +261,9 @@ export default function DashboardScreen() {
             </Card>
           )}
         </View>
+
+        {/* Add extra padding at the bottom to ensure scrolling works properly */}
+        <View style={styles.bottomPadding} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -280,6 +274,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
     padding: 16,
+  },
+  scrollContent: {
+    paddingBottom: 100, // Add extra padding at the bottom
   },
   header: {
     flexDirection: "row",
@@ -294,7 +291,7 @@ const styles = StyleSheet.create({
   },
   startSessionCard: {
     padding: 16,
-    marginVertical: 16,
+    marginVertical: 8, // Reduced from 16 to 8
     backgroundColor: colors.cardBackground,
   },
   cardTitle: {
@@ -323,13 +320,13 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   progressSection: {
-    marginVertical: 16,
+    marginVertical: 8, // Reduced from 16 to 8
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "bold",
     color: colors.text,
-    marginBottom: 12,
+    marginBottom: 8, // Reduced from 12 to 8
   },
   progressCard: {
     padding: 16,
@@ -355,13 +352,13 @@ const styles = StyleSheet.create({
     color: colors.textLight,
   },
   recentSessionsSection: {
-    marginVertical: 16,
+    marginVertical: 8, // Reduced from 16 to 8
   },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 8, // Reduced from 12 to 8
   },
   viewAllText: {
     color: colors.primary,
@@ -386,5 +383,8 @@ const styles = StyleSheet.create({
   navigationButtonText: {
     color: "white",
     fontWeight: "bold",
+  },
+  bottomPadding: {
+    height: 50, // Extra padding at the bottom
   },
 });

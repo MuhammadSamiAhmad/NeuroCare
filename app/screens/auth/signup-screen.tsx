@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { ref, set } from "firebase/database";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,7 +20,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { Input } from "../../components/ui/input";
 import { Button } from "../../components/ui/button";
 import { colors } from "../../theme/colors";
-import { auth } from "../../lib/firebase";
+import { auth, database } from "../../lib/firebase";
+import { useAuthStore } from "../../stores/auth-store";
 import type { RootStackParamList } from "../../types/navigation";
 
 // Create a typed navigation prop
@@ -35,6 +37,30 @@ export default function SignupScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const navigation = useNavigation<SignupScreenNavigationProp>();
+  const { setUser, setInitialized } = useAuthStore();
+
+  // Initialize user data in Firebase Realtime Database
+  const initializeUserData = async (userId: string) => {
+    const userRef = ref(database, `users/${userId}`);
+    try {
+      // Initialize with default values
+      await set(userRef, {
+        session: {
+          isActive: false,
+          vibrationLevel: 50,
+        },
+        device: {
+          temperature: 0,
+          heartRate: 0,
+          isConnected: false,
+        },
+      });
+      setInitialized(true);
+    } catch (error: any) {
+      console.error("Error initializing user data:", error);
+      Alert.alert("Error", "Failed to initialize user data.");
+    }
+  };
 
   const handleSignup = async () => {
     if (!name || !email || !password || !confirmPassword) {
@@ -55,6 +81,13 @@ export default function SignupScreen() {
         password
       );
       await updateProfile(user, { displayName: name });
+
+      // Initialize user data in Firebase Realtime Database
+      await initializeUserData(user.uid);
+
+      // Set user in auth store
+      setUser(user);
+
       // Navigation will be handled by the auth state listener in App.tsx
     } catch (error: any) {
       Alert.alert("Signup Failed", error.message || "An error occurred");

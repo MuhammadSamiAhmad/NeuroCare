@@ -1,27 +1,26 @@
-import type React from "react"
-import { View, StyleSheet, Dimensions } from "react-native"
-import { BarChart } from "react-native-chart-kit"
-import { colors } from "../../theme/colors"
+import type React from "react";
+import { View, StyleSheet, Dimensions } from "react-native";
+import { BarChart } from "react-native-chart-kit";
+import { colors } from "../../theme/colors";
 
 interface ProgressData {
-  bloodFlow: number
-  painReduction: number
-  sessionDuration: number
+  heartRate: number;
+  sessionDuration: number;
 }
 
 interface ProgressChartProps {
-  data: ProgressData
+  data: ProgressData;
 }
 
 export const ProgressChart: React.FC<ProgressChartProps> = ({ data }) => {
   const chartData = {
-    labels: ["Blood Flow", "Pain Reduction", "Session Duration"],
+    labels: ["Heart Rate", "Session Duration"],
     datasets: [
       {
-        data: [data.bloodFlow, data.painReduction, data.sessionDuration],
+        data: [data.heartRate, data.sessionDuration],
       },
     ],
-  }
+  };
 
   const chartConfig = {
     backgroundGradientFrom: colors.cardBackground,
@@ -33,7 +32,7 @@ export const ProgressChart: React.FC<ProgressChartProps> = ({ data }) => {
       borderRadius: 16,
     },
     barPercentage: 0.7,
-  }
+  };
 
   return (
     <View style={styles.container}>
@@ -49,8 +48,8 @@ export const ProgressChart: React.FC<ProgressChartProps> = ({ data }) => {
         yAxisSuffix="%"
       />
     </View>
-  )
-}
+  );
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -60,4 +59,4 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     borderRadius: 8,
   },
-})
+});

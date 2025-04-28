@@ -7,6 +7,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -19,6 +21,8 @@ import {
   orderBy,
   getDocs,
   Timestamp,
+  writeBatch,
+  doc,
 } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
@@ -26,30 +30,37 @@ import { colors } from "../theme/colors";
 import { Card } from "../components/ui/card";
 import { ProgressChart } from "../components/charts/progress-chart";
 import { SessionHistoryItem } from "../components/session-history-item";
-import { MonthlyProgressChart } from "../components/charts/monthly-progress-chart";
+// Comment out MonthlyProgressChart import
+// import { MonthlyProgressChart } from "../components/charts/monthly-progress-chart";
 import type { NavigationProp } from "../types/navigation";
-import type { SessionData, MonthlyData, ProgressData } from "../types/session";
+// Update the import to remove MonthlyData
+import type { SessionData, ProgressData } from "../types/session";
+import { useAiRecommendations } from "../hooks/use-ai-recommendations";
 
 export default function ProgressTrackingScreen() {
   const navigation = useNavigation<NavigationProp<"ProgressTracking">>();
   const [activeTab, setActiveTab] = useState("weekly");
   const [sessions, setSessions] = useState<SessionData[]>([]);
   const [weeklyProgress, setWeeklyProgress] = useState<ProgressData>({
-    bloodFlow: 0,
-    painReduction: 0,
+    heartRate: 0,
     sessionDuration: 0,
   });
-  const [monthlyProgress, setMonthlyProgress] = useState<MonthlyData[]>([]);
+  // Comment out monthly progress state
+  // const [monthlyProgress, setMonthlyProgress] = useState<MonthlyData[]>([]);
   const [weeklyStats, setWeeklyStats] = useState({
     totalSessions: 0,
     totalTime: 0,
-    painReduction: 0,
+    averageHeartRate: 0,
   });
-  const [monthlyStats, setMonthlyStats] = useState({
-    totalSessions: 0,
-    totalTime: 0,
-    improvement: 0,
-  });
+  // Comment out monthly stats state
+  // const [monthlyStats, setMonthlyStats] = useState({
+  //   totalSessions: 0,
+  //   totalTime: 0,
+  //   improvement: 0,
+  // });
+
+  const { recommendations, sources, loading, fetchRecommendations } =
+    useAiRecommendations();
 
   const fetchSessions = async () => {
     try {
@@ -76,6 +87,9 @@ export default function ProgressTrackingScreen() {
 
       // Calculate progress metrics based on session data
       calculateProgressMetrics(sessionData);
+
+      // Fetch AI recommendations
+      fetchRecommendations(sessionData);
     } catch (error) {
       console.error("Error fetching sessions:", error);
     }
@@ -83,10 +97,12 @@ export default function ProgressTrackingScreen() {
 
   const calculateProgressMetrics = (sessionData: SessionData[]) => {
     if (!sessionData.length) {
-      setWeeklyProgress({ bloodFlow: 0, painReduction: 0, sessionDuration: 0 });
-      setMonthlyProgress([]);
-      setWeeklyStats({ totalSessions: 0, totalTime: 0, painReduction: 0 });
-      setMonthlyStats({ totalSessions: 0, totalTime: 0, improvement: 0 });
+      setWeeklyProgress({ heartRate: 0, sessionDuration: 0 });
+      // Comment out monthly progress reset
+      // setMonthlyProgress([]);
+      setWeeklyStats({ totalSessions: 0, totalTime: 0, averageHeartRate: 0 });
+      // Comment out monthly stats reset
+      // setMonthlyStats({ totalSessions: 0, totalTime: 0, improvement: 0 });
       return;
     }
 
@@ -104,32 +120,38 @@ export default function ProgressTrackingScreen() {
         (sum, session) => sum + session.duration,
         0
       );
-      const avgVibrationIntensity =
-        weeklySessions.reduce(
-          (sum, session) => sum + session.vibrationIntensity,
-          0
-        ) / weeklySessions.length;
-      const bloodFlow = Math.min(100, Math.round(avgVibrationIntensity * 0.8)); // Example
-      const painReduction = Math.min(
-        100,
-        Math.round(weeklySessions.length * 10)
-      ); // Example
+
+      // Calculate average heart rate from sessions that have it
+      const sessionsWithHeartRate = weeklySessions.filter(
+        (session) => session.averageHeartRate
+      );
+      const avgHeartRate =
+        sessionsWithHeartRate.length > 0
+          ? Math.round(
+              sessionsWithHeartRate.reduce(
+                (sum, session) => sum + (session.averageHeartRate || 0),
+                0
+              ) / sessionsWithHeartRate.length
+            )
+          : 0;
 
       setWeeklyProgress({
-        bloodFlow,
-        painReduction,
+        heartRate: avgHeartRate,
         sessionDuration: Math.min(100, Math.round(totalDuration / 60)),
       });
+
       setWeeklyStats({
         totalSessions: weeklySessions.length,
         totalTime: Math.round(totalDuration / 60), // Convert seconds to minutes
-        painReduction: Math.round(painReduction),
+        averageHeartRate: avgHeartRate,
       });
     } else {
-      setWeeklyProgress({ bloodFlow: 0, painReduction: 0, sessionDuration: 0 });
-      setWeeklyStats({ totalSessions: 0, totalTime: 0, painReduction: 0 });
+      setWeeklyProgress({ heartRate: 0, sessionDuration: 0 });
+      setWeeklyStats({ totalSessions: 0, totalTime: 0, averageHeartRate: 0 });
     }
 
+    // Comment out all monthly progress calculation code
+    /*
     // Monthly progress (last 30 days)
     const oneMonthAgo = Timestamp.fromMillis(
       Date.now() - 30 * 24 * 60 * 60 * 1000
@@ -144,15 +166,14 @@ export default function ProgressTrackingScreen() {
         (sum, session) => sum + session.duration,
         0
       );
-      const avgVibrationIntensity =
-        monthlySessions.reduce(
-          (sum, session) => sum + session.vibrationIntensity,
-          0
-        ) / monthlySessions.length;
-      const improvement = Math.min(
-        100,
-        Math.round(avgVibrationIntensity * 0.65)
-      ); // Example
+      
+      // Calculate average heart rate
+      const sessionsWithHeartRate = monthlySessions.filter(session => session.averageHeartRate);
+      const avgHeartRate = sessionsWithHeartRate.length > 0 
+        ? Math.round(sessionsWithHeartRate.reduce((sum, session) => sum + (session.averageHeartRate || 0), 0) / sessionsWithHeartRate.length)
+        : 0;
+      
+      const improvement = Math.min(100, Math.round(avgHeartRate * 0.65)); // Example calculation
 
       setMonthlyStats({
         totalSessions: monthlySessions.length,
@@ -181,19 +202,12 @@ export default function ProgressTrackingScreen() {
           return sessionTime >= dayStart && sessionTime < dayEnd;
         });
 
-        const dayBloodFlow = daySessions.length
-          ? Math.min(
-              100,
-              Math.round(
-                (daySessions.reduce((sum, s) => sum + s.vibrationIntensity, 0) /
-                  daySessions.length) *
-                  0.8
-              )
-            )
+        // Calculate heart rate for the day
+        const daySessionsWithHeartRate = daySessions.filter(session => session.averageHeartRate);
+        const dayHeartRate = daySessionsWithHeartRate.length > 0
+          ? Math.round(daySessionsWithHeartRate.reduce((sum, s) => sum + (s.averageHeartRate || 0), 0) / daySessionsWithHeartRate.length)
           : 0;
-        const dayPainReduction = daySessions.length
-          ? Math.min(100, Math.round(daySessions.length * 10))
-          : 0;
+          
         const daySessionDuration = daySessions.length
           ? Math.min(
               100,
@@ -205,8 +219,7 @@ export default function ProgressTrackingScreen() {
 
         monthlyData.unshift({
           day: i + 1,
-          bloodFlow: dayBloodFlow,
-          painReduction: dayPainReduction,
+          heartRate: dayHeartRate,
           sessionDuration: daySessionDuration,
         });
       }
@@ -216,6 +229,60 @@ export default function ProgressTrackingScreen() {
       setMonthlyProgress([]);
       setMonthlyStats({ totalSessions: 0, totalTime: 0, improvement: 0 });
     }
+    */
+  };
+
+  const handleDeleteAllSessions = () => {
+    Alert.alert(
+      "Delete All Sessions",
+      "Are you sure you want to delete all your session history? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete All",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const auth = getAuth();
+              const userId = auth.currentUser?.uid;
+
+              if (!userId) return;
+
+              const db = getFirestore();
+              const sessionsRef = collection(db, "sessions");
+              const q = query(sessionsRef, where("userId", "==", userId));
+
+              const querySnapshot = await getDocs(q);
+
+              const batch = writeBatch(db);
+              querySnapshot.forEach((document) => {
+                batch.delete(doc(db, "sessions", document.id));
+              });
+
+              await batch.commit();
+
+              // Refresh the sessions list
+              setSessions([]);
+              setWeeklyProgress({ heartRate: 0, sessionDuration: 0 });
+              // Comment out monthly progress reset
+              // setMonthlyProgress([]);
+              setWeeklyStats({
+                totalSessions: 0,
+                totalTime: 0,
+                averageHeartRate: 0,
+              });
+              // Comment out monthly stats reset
+              // setMonthlyStats({ totalSessions: 0, totalTime: 0, improvement: 0 });
+
+              Alert.alert("Success", "All sessions have been deleted");
+            } catch (error) {
+              console.error("Error deleting sessions:", error);
+              Alert.alert("Error", "Failed to delete sessions");
+            }
+          },
+        },
+      ]
+    );
   };
 
   useEffect(() => {
@@ -246,6 +313,7 @@ export default function ProgressTrackingScreen() {
             Weekly
           </Text>
         </TouchableOpacity>
+        {/* Comment out monthly tab
         <TouchableOpacity
           style={[styles.tab, activeTab === "monthly" && styles.activeTab]}
           onPress={() => setActiveTab("monthly")}
@@ -259,6 +327,7 @@ export default function ProgressTrackingScreen() {
             Monthly
           </Text>
         </TouchableOpacity>
+        */}
         <TouchableOpacity
           style={[styles.tab, activeTab === "history" && styles.activeTab]}
           onPress={() => setActiveTab("history")}
@@ -288,16 +357,7 @@ export default function ProgressTrackingScreen() {
                       { backgroundColor: colors.chart1 },
                     ]}
                   />
-                  <Text style={styles.legendText}>Blood Flow</Text>
-                </View>
-                <View style={styles.legendItem}>
-                  <View
-                    style={[
-                      styles.legendColor,
-                      { backgroundColor: colors.chart2 },
-                    ]}
-                  />
-                  <Text style={styles.legendText}>Pain Reduction</Text>
+                  <Text style={styles.legendText}>Heart Rate</Text>
                 </View>
                 <View style={styles.legendItem}>
                   <View
@@ -328,28 +388,78 @@ export default function ProgressTrackingScreen() {
                 </View>
                 <View style={styles.statItem}>
                   <Text style={styles.statValue}>
-                    {weeklyStats.painReduction}%
+                    {weeklyStats.averageHeartRate} bpm
                   </Text>
-                  <Text style={styles.statLabel}>Pain Reduction</Text>
+                  <Text style={styles.statLabel}>Avg Heart Rate</Text>
                 </View>
               </View>
             </Card>
 
             <Card style={styles.tipsCard}>
-              <Text style={styles.cardTitle}>Recommendations</Text>
-              <Text style={styles.tipText}>
-                • Maintain consistent daily sessions for optimal results
-              </Text>
-              <Text style={styles.tipText}>
-                • Gradually increase vibration intensity as comfort allows
-              </Text>
-              <Text style={styles.tipText}>
-                • Stay hydrated before and after therapy sessions
-              </Text>
+              <View style={styles.recommendationHeader}>
+                <Text style={styles.cardTitle}>Recommendations</Text>
+                <TouchableOpacity
+                  onPress={() => navigation.navigate("Recommendations")}
+                  style={styles.viewAllButton}
+                >
+                  <Text style={styles.viewAllText}>View All</Text>
+                </TouchableOpacity>
+              </View>
+
+              {loading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text style={styles.loadingText}>
+                    Generating recommendations...
+                  </Text>
+                </View>
+              ) : recommendations.length > 0 ? (
+                <View style={styles.recommendationContainer}>
+                  <View style={styles.recommendationRow}>
+                    <View style={styles.recommendationItem}>
+                      <View style={styles.recommendationIconContainer}>
+                        <Ionicons
+                          name="pulse"
+                          size={20}
+                          color={colors.primary}
+                        />
+                      </View>
+                      <Text style={styles.recommendationLabel}>Frequency</Text>
+                      <Text style={styles.recommendationValue}>
+                        {recommendations[0].frequency} Hz
+                      </Text>
+                    </View>
+
+                    <View style={styles.recommendationItem}>
+                      <View style={styles.recommendationIconContainer}>
+                        <Ionicons
+                          name="time"
+                          size={20}
+                          color={colors.primary}
+                        />
+                      </View>
+                      <Text style={styles.recommendationLabel}>Duration</Text>
+                      <Text style={styles.recommendationValue}>
+                        {recommendations[0].duration} min
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Text style={styles.justificationText}>
+                    {recommendations[0].justification}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={styles.emptyRecommendationText}>
+                  No recommendations available. Complete more therapy sessions
+                  to receive personalized recommendations.
+                </Text>
+              )}
             </Card>
           </View>
         )}
 
+        {/* Comment out monthly tab content
         {activeTab === "monthly" && (
           <View style={styles.tabContent}>
             <Card style={styles.progressCard}>
@@ -363,16 +473,7 @@ export default function ProgressTrackingScreen() {
                       { backgroundColor: colors.chart1 },
                     ]}
                   />
-                  <Text style={styles.legendText}>Blood Flow</Text>
-                </View>
-                <View style={styles.legendItem}>
-                  <View
-                    style={[
-                      styles.legendColor,
-                      { backgroundColor: colors.chart2 },
-                    ]}
-                  />
-                  <Text style={styles.legendText}>Pain Reduction</Text>
+                  <Text style={styles.legendText}>Heart Rate</Text>
                 </View>
               </View>
             </Card>
@@ -402,10 +503,26 @@ export default function ProgressTrackingScreen() {
             </Card>
           </View>
         )}
+        */}
 
         {activeTab === "history" && (
           <View style={styles.tabContent}>
-            <Text style={styles.sectionTitle}>Session History</Text>
+            <View style={styles.historyHeader}>
+              <Text style={styles.sectionTitle}>Session History</Text>
+              {sessions.length > 0 && (
+                <TouchableOpacity
+                  onPress={handleDeleteAllSessions}
+                  style={styles.deleteAllButton}
+                >
+                  <Ionicons
+                    name="trash-outline"
+                    size={16}
+                    color={colors.error}
+                  />
+                  <Text style={styles.deleteAllText}>Delete All</Text>
+                </TouchableOpacity>
+              )}
+            </View>
 
             {sessions.length > 0 ? (
               sessions.map((session) => (
@@ -413,6 +530,7 @@ export default function ProgressTrackingScreen() {
                   key={session.id}
                   session={session}
                   detailed
+                  onDelete={fetchSessions}
                 />
               ))
             ) : (
@@ -534,11 +652,27 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: 8,
   },
+  historyHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "bold",
     color: colors.text,
-    marginBottom: 12,
+  },
+  deleteAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 6,
+  },
+  deleteAllText: {
+    fontSize: 14,
+    color: colors.error,
+    marginLeft: 4,
+    fontWeight: "500",
   },
   emptySessionsCard: {
     padding: 16,
@@ -548,5 +682,110 @@ const styles = StyleSheet.create({
   emptySessionsText: {
     color: colors.textLight,
     textAlign: "center",
+  },
+  viewSourcesButton: {
+    marginTop: 8,
+    alignSelf: "flex-end",
+  },
+  viewSourcesText: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: "600",
+  },
+  tipSubtitle: {
+    fontSize: 14,
+    color: colors.textLight,
+    marginBottom: 12,
+  },
+  recommendationItem: {
+    marginBottom: 12,
+    padding: 10,
+    backgroundColor: colors.background,
+    borderRadius: 8,
+  },
+  sessionMiniTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.primary,
+    marginBottom: 6,
+  },
+  recommendationMiniDetails: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  detailMiniText: {
+    fontSize: 14,
+    color: colors.text,
+  },
+  justificationMini: {
+    fontSize: 12,
+    color: colors.textLight,
+    fontStyle: "italic",
+  },
+  recommendationHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  viewAllButton: {
+    padding: 4,
+  },
+  viewAllText: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: "500",
+  },
+  loadingContainer: {
+    alignItems: "center",
+    paddingVertical: 12,
+  },
+  loadingText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: colors.textLight,
+  },
+  recommendationContainer: {
+    backgroundColor: `${colors.primary}10`,
+    borderRadius: 8,
+    padding: 12,
+  },
+  recommendationRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginBottom: 12,
+  },
+  recommendationIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: `${colors.primary}20`,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  recommendationLabel: {
+    fontSize: 12,
+    color: colors.textLight,
+    marginBottom: 2,
+  },
+  recommendationValue: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: colors.primary,
+  },
+  justificationText: {
+    fontSize: 14,
+    color: colors.text,
+    fontStyle: "italic",
+    textAlign: "center",
+    marginTop: 8,
+  },
+  emptyRecommendationText: {
+    fontSize: 14,
+    color: colors.textLight,
+    textAlign: "center",
+    padding: 12,
   },
 });
